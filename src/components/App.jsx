@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { getImages } from 'services/serviceAPI';
 import { Searchbar } from './Searchbar/Searchbar';
 import { ImageGallery } from './ImageGallery/ImageGallery';
@@ -7,96 +7,86 @@ import { Loader } from './Loader/Loader';
 import { Modal } from './Modal/Modal';
 import { AppWraper } from './App.styled';
 
-export class App extends Component {
-  state = {
-    searchTerm: '',
-    collection: [],
-    page: 0,
-    error: null,
-    status: 'idle',
-    isOpenModal: false,
-    image: '',
-  };
+export const App = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [collection, setCollection] = useState([]);
+  const [page, setPage] = useState(0);
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  const [image, setImage] = useState('false');
 
-  async componentDidUpdate(_, prevState) {
-    const { searchTerm: newSearchTerm, page: newPage } = this.state;
-    const { searchTerm: prevSearchTerm, page: prevPage } = prevState;
+  useEffect(() => {
+    if (searchTerm === '') {
+      return;
+    }
 
-    if (newSearchTerm !== prevSearchTerm || newPage !== prevPage) {
-      this.setState({ status: 'loading' });
+    setStatus('pending');
+
+    async function fetchData() {
       try {
-        const collection = await getImages(newSearchTerm, newPage);
-        if (collection instanceof Error) {
-          throw collection;
+        const newCollection = await getImages(searchTerm, page);
+
+        if (newCollection instanceof Error) {
+          throw newCollection;
         }
-        if (collection.length === 0 && newSearchTerm !== prevSearchTerm) {
-          this.setState(
-            {
-              status: 'idle',
-              collection,
-            },
-            () => alert(`No images found for your request "${newSearchTerm}"`)
-          );
+
+        if (newCollection.length === 0 && page === 1) {
+          setCollection(newCollection);
+          setStatus('idle');
+          alert(`No images found for your request "${searchTerm}"`);
           return;
         }
-        if (collection.length === 0) {
-          this.setState(
-            {
-              status: 'resolved',
-            },
-            () => alert(`No more images by request "${newSearchTerm}"`)
-          );
+
+        if (newCollection.length === 0) {
+          setStatus('resolved');
+          alert(`No more images by request "${searchTerm}"`);
           return;
         }
-        this.setState(prevState => ({
-          collection: [...prevState.collection, ...collection],
-          status: 'resolved',
-        }));
-      } catch (error) {
-        this.setState({ error, status: 'rejected' });
+
+        setCollection([...collection, ...newCollection]);
+        setStatus('resolved');
+      } catch (newError) {
+        setError(newError);
+        setStatus('rejected');
       }
     }
-  }
 
-  handleSubmit = searchTerm => {
-    if (searchTerm.trim() !== '') {
-      if (searchTerm === this.state.searchTerm) {
+    fetchData();
+  }, [searchTerm, page]);
+
+  const handleSubmit = query => {
+    if (query.trim() !== '') {
+      if (query === searchTerm) {
         return;
       }
-      this.setState({
-        searchTerm,
-        page: 1,
-        collection: [],
-      });
+      setSearchTerm(query);
+      setPage(1);
+      setCollection([]);
     } else {
       return alert('Tap somthing for request');
     }
   };
 
-  addImages = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const addImages = () => {
+    setPage(prevState => prevState + 1);
   };
 
-  handleModal = image => {
-    this.setState(prevState => ({
-      isOpenModal: !prevState.isOpenModal,
-      image,
-    }));
+  const handleModal = pickedImage => {
+    setIsOpenModal(prevState => !prevState);
+    setImage(pickedImage);
   };
 
-  render() {
-    const { collection, status, isOpenModal, image } = this.state;
-    return (
-      <AppWraper>
-        <Searchbar onSubmit={this.handleSubmit} />
-        <ImageGallery collection={collection} openModal={this.handleModal} />
-        {status === 'loading' && <Loader />}
-        {status === 'resolved' && <Button onClick={this.addImages} />}
-        {status === 'rejected' && <p>Somthing goes wrong... Try againe.</p>}
-        {isOpenModal && <Modal image={image} closeModal={this.handleModal} />}
-      </AppWraper>
-    );
-  }
-}
+  return (
+    <AppWraper>
+      <Searchbar onSubmit={handleSubmit} />
+      <ImageGallery collection={collection} openModal={handleModal} />
+      {status === 'pending' && <Loader />}
+      {status === 'resolved' && <Button onClick={addImages} />}
+      {status === 'rejected' && (
+        <p error={error.message}>Somthing goes wrong... Try againe.</p>
+      )}
+      {isOpenModal && <Modal image={image} closeModal={handleModal} />}
+    </AppWraper>
+  );
+};
