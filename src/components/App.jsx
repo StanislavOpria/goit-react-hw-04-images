@@ -44,7 +44,7 @@ export const App = () => {
           return;
         }
 
-        setCollection([...collection, ...newCollection]);
+        setCollection(prevState => [...prevState, ...newCollection]);
         setStatus('resolved');
       } catch (newError) {
         setError(newError);
